@@ -1,0 +1,3 @@
+fastapi[standard-no-fastapi-cloud-cli]
+sqlalchemy
+aioboto3
