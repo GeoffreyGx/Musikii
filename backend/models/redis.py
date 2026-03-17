@@ -10,6 +10,7 @@ class Player(BaseModel):
 class Round(BaseModel):
     index: int
     song_id: str
+    starting_time: float
     round_duration: int
     answers: dict[str, str]
     correct_players: list[str]

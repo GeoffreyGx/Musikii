@@ -1,4 +1,5 @@
 import aioredis
+import time
 from sqlalchemy.orm import Session
 from models.redis import *
 from services.sql import getSongFromPlaylistIndex
@@ -13,6 +14,9 @@ redis_client = aioredis.from_url(
 
 def game_key(code: str) -> str:
     return f"game:{code}"
+
+def round_key(code: str, index: int) -> str:
+    return f"game:{code}:round:{index}"
 
 async def checkGameExistence(code: str) -> bool:
     return await redis_client.exists(game_key(code)) == 1
@@ -44,10 +48,44 @@ async def getGame(code: str) -> Game:
 async def closeGame(code: str):
     await redis_client.delete(game_key(code))
 
-# async def gameNextSong(session: Session, code: str, ):
-#     game: Game = await getGame(code)
-#     if not game:
-#         raise KeyError('Game not found')
-#     nextSong = getSongFromPlaylistIndex(session, game.playlist_id, game.current_round_index)
-#     if nextSong == 22:
-#         raise KeyError("Song not found")
+async def getRound(code: str, index: int):
+    raw = await redis_client.get(round_key(code, index))
+    if not raw:
+        raise KeyError('Round not found')
+    return Round.model_validate_json(str(raw))
+
+async def saveRound(code: str, round: Round):
+    redis_client.set(
+        round_key(code, round.index),
+        round.model_dump_json(),
+    )
+
+async def nextRound(session: Session, code: str):
+    game: Game = await getGame(code)
+    if not game:
+        raise KeyError('Game not found')
+    
+    nextSong = getSongFromPlaylistIndex(session, game.playlist_id, game.current_round_index)
+    if nextSong == 22:
+        raise KeyError("Song not found")
+    new_round = Round(
+        index=game.current_round_index + 1,
+        song_id=nextSong["id"],
+        starting_time=time.time(),
+        round_duration=30,
+        answers={},
+        correct_players=[]
+    )
+    await saveRound(code, new_round)
+
+async def isAnsweringWindowOpen(code: str):
+    game: Game = await getGame(code)
+    if not game:
+        raise KeyError('Game not found')
+    round: Round = await getRound(code, game.current_round_index)
+    if not round:
+        raise KeyError('Round not found')
+    elapsed = time.time() - round.starting_time
+    return elapsed <= round.round_duration
+
+    
