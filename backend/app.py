@@ -11,7 +11,7 @@ import aioboto3
 from models.sql import initializeDB
 from services.sql import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, addSongToPlaylist, removeSongFromPlaylist, getPlaylist, getSongInfo, getSongs
 from services.s3 import newFile, removeFile, getS3Client
-
+from services.redis import redis_client
 # APP SETUP
 
 logger = logging.getLogger()

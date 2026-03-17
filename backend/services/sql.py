@@ -182,6 +182,29 @@ def getPlaylist(session: Session, uuid: str):
         })
     return result
 
+def getSongFromPlaylistIndex(session: Session, playlist_id: str, index: int):
+    playlist = session.get(Playlist, playlist_id)
+    if not playlist:
+        logger.warning(f"Tried to query non-existant playlist with UUID : {playlist_id}")
+        return 22
+    query = (select(PlaylistSongLink)
+             .where(
+                 PlaylistSongLink.playlist_id == playlist_id,
+                 PlaylistSongLink.track_position == index
+             )
+             .options(joinedload(PlaylistSongLink.song).joinedload(Song.artist)))
+    link = session.execute(query).scalar_one_or_none()
+
+    if not link:
+        return 22
+        
+    # 5. Return the cleanly formatted data
+    return {
+        "id": link.song.id,
+        "title": link.song.title,
+        "artist": link.song.artist.name
+    }
+
 def getSongInfo(session: Session, uuid: str):
     query = select(Song).options(joinedload(Song.artist)).where(Song.id == uuid)
     song = session.execute(query).scalar_one_or_none()

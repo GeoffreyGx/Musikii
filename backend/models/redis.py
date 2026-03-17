@@ -9,7 +9,7 @@ class Player(BaseModel):
 
 class Round(BaseModel):
     index: int
-    song_id: str # classe Song dans Postgre
+    song_id: str
     round_duration: int
     answers: dict[str, str]
     correct_players: list[str]
@@ -17,6 +17,7 @@ class Round(BaseModel):
 class Game(BaseModel):
     id: str
     host_id: str
+    playlist_id: str
     players: list[str]
     current_round_index: int
     phase: Literal["LOBBY", "COUNTDOWN", "PLAY", "ANSWER", "RESULTS"]
