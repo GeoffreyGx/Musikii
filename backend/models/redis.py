@@ -19,6 +19,5 @@ class Game(BaseModel):
     id: str
     host_id: str
     playlist_id: str
-    players: list[str]
     current_round_index: int
     phase: Literal["LOBBY", "COUNTDOWN", "PLAY", "ANSWER", "RESULTS"]

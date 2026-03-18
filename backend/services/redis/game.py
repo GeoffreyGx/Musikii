@@ -27,7 +27,6 @@ async def newGame(code: str, host_id: str, playlist_id: str):
         id=code,
         host_id=host_id,
         playlist_id=playlist_id,
-        players=[],
         current_round_index=0,
         phase="LOBBY"
     )
@@ -81,7 +80,6 @@ async def nextRound(session: Session, code: str):
         id=game.id,
         host_id=game.host_id,
         playlist_id=game.playlist_id,
-        players=game.players,
         current_round_index=game.current_round_index + 1,
         phase="COUNTDOWN"
     )
@@ -106,7 +104,6 @@ async def setGamePhase(code: str, phase: Literal["LOBBY", "COUNTDOWN", "PLAY", "
         id=game.id,
         host_id=game.host_id,
         playlist_id=game.playlist_id,
-        players=game.players,
         current_round_index=game.current_round_index,
         phase=phase
     )
