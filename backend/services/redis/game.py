@@ -33,7 +33,7 @@ async def newGame(code: str, host_id: str, playlist_id: str):
     await saveGame(code, game)
 
 async def saveGame(code: str, game: Game):
-    redis_client.set(
+    await redis_client.set(
         game_key(code),
         game.model_dump_json(),
         ex=GAME_TTL
@@ -55,7 +55,7 @@ async def getRound(code: str, index: int):
     return Round.model_validate_json(str(raw))
 
 async def saveRound(code: str, round: Round):
-    redis_client.set(
+    await redis_client.set(
         round_key(code, round.index),
         round.model_dump_json(),
     )

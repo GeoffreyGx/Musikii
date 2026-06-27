@@ -14,7 +14,7 @@ async def checkPlayerExists(code: str, player_id: str):
     return await redis_client.hexists(player_key(code), player_id) == 1
 
 async def addPlayer(code: str, player_id: str, role: Literal['host', 'player']) -> int:
-    if not checkPlayerExists(code, player_id):
+    if not await checkPlayerExists(code, player_id):
         player = Player(
             id=player_id,
             username=None,

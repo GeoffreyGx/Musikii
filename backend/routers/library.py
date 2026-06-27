@@ -2,13 +2,21 @@ import logging
 import uuid
 from fastapi import APIRouter, UploadFile, Response, HTTPException, Depends
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from services.sql import getDB
-from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, addSongToPlaylist, removeSongFromPlaylist, getPlaylist, getSong, getSongs, getArtist, getArtists, getPlaylists
+from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, modifyPlaylist, getPlaylist, getSong, getSongs, getArtist, getArtists, getPlaylists, addSongToPlaylist, removeSongFromPlaylist
 from services.s3 import newFile, removeFile, getS3Client
 
 logger = logging.getLogger()
 router = APIRouter()
+
+
+class PlaylistPatch(BaseModel):
+    name: str | None = None
+    song_id: str | None = None
+    position: int | None = None
+    remove_song: bool = False
 
 # Artist-specific routes
 @router.get('/artists')
@@ -43,7 +51,7 @@ def delete_artist(artist_id: str, db: Session = Depends(getDB)):
         raise HTTPException(404, "Artist not found")
     if res == 1:
         raise HTTPException(500, "Removal failed")
-    return Response(id)
+    return Response(artist_id)
 
 
 # Song-specific routes
@@ -96,7 +104,7 @@ async def delete_song(song_id: str, s3 = Depends(getS3Client), db: Session = Dep
         res = await removeFile(s3, song_id)
         if res == 1:
             raise HTTPException(500, "Removal failed")
-        return Response(id)
+        return Response(song_id)
 
 
 # Playlist-specific routes
@@ -130,7 +138,31 @@ def delete_playlist(playlist_id: str, db: Session = Depends(getDB)):
         raise HTTPException(404, "Playlist not found")
     if res == 1:
         raise HTTPException(500, "Removal failed")
-    return Response(id)
+    return Response(playlist_id)
+
+
+@router.patch("/playlist/{playlist_id}")
+def modify_playlist(playlist_id: str, patch: PlaylistPatch, db: Session = Depends(getDB)):
+    if patch.name is None and patch.song_id is None:
+        raise HTTPException(400, "No playlist changes were provided")
+
+    res = modifyPlaylist(
+        db,
+        playlist_id,
+        name=patch.name,
+        song_uuid=patch.song_id,
+        position=patch.position,
+        remove_song=patch.remove_song,
+    )
+    if res == 22:
+        raise HTTPException(404, "Playlist not found")
+    if res == 221:
+        raise HTTPException(404, "Song not found")
+    if res == 1:
+        raise HTTPException(500, "Modification failed")
+
+    return getPlaylist(db, playlist_id)
+
 
 
 @router.get("/add/{playlist_id}", deprecated=True)

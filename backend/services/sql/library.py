@@ -203,6 +203,86 @@ def deletePlaylist(session: Session, uuid: str) -> int:
         return 1
 
 
+def modifyPlaylist(
+    session: Session,
+    uuid: str,
+    name: str | None = None,
+    song_uuid: str | None = None,
+    position: int | None = None,
+    remove_song: bool = False,
+) -> int:
+    try:
+        playlist = session.get(Playlist, uuid)
+        if not playlist:
+            logger.warning(f"Tried to modify non-existant playlist with UUID : {uuid}")
+            return 22
+
+        if name is not None:
+            playlist.name = name
+
+        if song_uuid is not None:
+            song = session.get(Song, song_uuid)
+            if not song:
+                logger.warning(f"Tried to modify playlist with non-existant song UUID : {song_uuid}")
+                return 221
+
+            if remove_song:
+                query = select(PlaylistSongLink).where(
+                    PlaylistSongLink.playlist_id == uuid,
+                    PlaylistSongLink.song_id == song_uuid,
+                )
+                if position is not None:
+                    query = query.where(PlaylistSongLink.track_position == position)
+                else:
+                    query = query.order_by(PlaylistSongLink.track_position)
+
+                link = session.execute(query).scalars().first()
+                if not link:
+                    return 22
+
+                remove_position = link.track_position
+                session.delete(link)
+
+                query = (
+                    update(PlaylistSongLink)
+                    .where(PlaylistSongLink.playlist_id == uuid)
+                    .where(PlaylistSongLink.track_position > remove_position)
+                    .values(track_position=PlaylistSongLink.track_position - 1)
+                )
+                session.execute(query)
+            else:
+                query = select(func.max(PlaylistSongLink.track_position)).where(
+                    PlaylistSongLink.playlist_id == uuid
+                )
+                maxi = session.execute(query).scalar() or 0
+
+                if position is None or position > maxi:
+                    target_position = maxi + 1
+                else:
+                    target_position = max(1, position)
+                    query = (
+                        update(PlaylistSongLink)
+                        .where(PlaylistSongLink.playlist_id == uuid)
+                        .where(PlaylistSongLink.track_position >= target_position)
+                        .values(track_position=PlaylistSongLink.track_position + 1)
+                    )
+                    session.execute(query)
+
+                session.add(
+                    PlaylistSongLink(
+                        playlist=playlist,
+                        song=song,
+                        track_position=target_position,
+                    )
+                )
+
+        session.commit()
+        return 0
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error while modifying playlist : {e}")
+        return 1
+
 def addSongToPlaylist(session: Session, song_uuid: str, playlist_uuid: str, position: int | None) -> int:
     try:
         playlist = session.get(Playlist, playlist_uuid)
