@@ -5,6 +5,103 @@ from models.sql import Song, Artist, Playlist, PlaylistSongLink
 
 logger = logging.getLogger()
 
+
+# Artists-related queries
+def getArtists(session: Session):
+    query = select(Artist)
+    artists = session.execute(query).scalars().all()
+
+    result = []
+    for artist in artists:
+        result.append({
+            'id': artist.id,
+            'name': artist.name
+        })
+    return result
+
+
+def getArtist(session: Session, uuid: str):
+    query = select(Artist).where(Artist.id == uuid)
+    artist = session.execute(query).scalar_one_or_none()
+    if not artist:
+        return 22
+
+    result = {
+        'name': artist.name,
+        'songs': []
+    }
+    for song in artist.songs:
+        result['songs'].append({
+            'id': song.id,
+            'title': song.title,
+            'artist': {'name': song.artist.name}
+        })
+
+    return result
+
+
+def newArtist(session: Session, name: str, uuid: str) -> int:
+    try:
+        if session.get(Artist, uuid):
+            return 21
+        
+        new_artist = Artist(id=uuid, name=name)
+        session.add(new_artist)
+        session.commit()
+        return 0
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error while adding new artist : {e}")
+        return 1
+
+
+def deleteArtist(session: Session, uuid: str) -> int:
+    try:
+        artist = session.get(Artist, uuid)
+        if not artist:
+            logger.warning(f"Tried to remove non-existant artist with UUID : {uuid}")
+            return 22
+        
+        session.delete(artist)
+        session.commit()
+        return 0
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error while removing artist : {e}")
+        return 1
+
+
+# Songs-related queries
+def getSongs(session: Session):
+    query = select(Song).options(joinedload(Song.artist))
+    songs = session.execute(query).scalars().all()
+
+    result = []
+    for song in songs:
+        if not song.artist:
+            return 23
+        result.append({
+            'id': song.id,
+            'title': song.title,
+            'artist': {'name': song.artist.name}
+        })
+    return result
+
+
+def getSong(session: Session, uuid: str):
+    query = select(Song).options(joinedload(Song.artist)).where(Song.id == uuid)
+    song = session.execute(query).scalar_one_or_none()
+    if not song:
+        return 22
+    if not song.artist:
+        return 23
+    
+    return {
+        'title': song.title,
+        'artist': {'name': song.artist.name}
+    }
+
+
 def newSong(session: Session, title: str, artist_id: str, uuid: str) -> int:
     try:
         if not session.get(Artist, artist_id):
@@ -20,34 +117,7 @@ def newSong(session: Session, title: str, artist_id: str, uuid: str) -> int:
         session.rollback()
         logger.error(f"Error while adding new song : {e}")
         return 1
-    
-def newArtist(session: Session, name: str, uuid: str) -> int:
-    try:
-        if session.get(Artist, uuid):
-            return 21
-        
-        new_artist = Artist(id=uuid, name=name)
-        session.add(new_artist)
-        session.commit()
-        return 0
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Error while adding new artist : {e}")
-        return 1
-    
-def newPlaylist(session: Session, name: str, uuid: str) -> int:
-    try:
-        if session.get(Playlist, uuid):
-            return 21
-        
-        new_playlist = Playlist(id=uuid, name=name)
-        session.add(new_playlist)
-        session.commit()
-        return 0
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Error while adding new playlist : {e}")
-        return 1
+
 
 def deleteSong(session: Session, uuid: str) -> int:
     try:
@@ -62,22 +132,60 @@ def deleteSong(session: Session, uuid: str) -> int:
     except Exception as e:
         session.rollback()
         logger.error(f"Error while removing song : {e}")
-        return 1
-    
-def deleteArtist(session: Session, uuid: str) -> int:
+        return 1    
+
+
+# Playlist-related queries
+def getPlaylists(session: Session):
+    query = select(Playlist)
+    playlists = session.execute(query).scalars().all()
+
+    result = []
+    for playlist in playlists:
+        result.append({
+            'id': playlist.id,
+            'name': playlist.name
+        })
+
+    return result
+
+
+def getPlaylist(session: Session, uuid: str):
+    playlist = session.get(Playlist, uuid)
+    if not playlist:
+        logger.warning(f"Tried to query non-existant playlist with UUID : {uuid}")
+        return 22
+    query = (select(PlaylistSongLink)
+                .where(PlaylistSongLink.playlist == playlist)
+                .order_by(PlaylistSongLink.track_position)
+                .options(joinedload(PlaylistSongLink.song).joinedload(Song.artist)))
+    links = session.execute(query).scalars().all()
+
+    result = {"name": playlist.name, "songs": []}
+    for link in links:
+        result["songs"].append({
+            'position': link.track_position,
+            'title': link.song.title,
+            'artist': link.song.artist.name,
+            's3_hash': link.song.id
+        })
+    return result
+
+
+def newPlaylist(session: Session, name: str, uuid: str) -> int:
     try:
-        artist = session.get(Artist, uuid)
-        if not artist:
-            logger.warning(f"Tried to remove non-existant artist with UUID : {uuid}")
-            return 22
+        if session.get(Playlist, uuid):
+            return 21
         
-        session.delete(artist)
+        new_playlist = Playlist(id=uuid, name=name)
+        session.add(new_playlist)
         session.commit()
         return 0
     except Exception as e:
         session.rollback()
-        logger.error(f"Error while removing artist : {e}")
+        logger.error(f"Error while adding new playlist : {e}")
         return 1
+
     
 def deletePlaylist(session: Session, uuid: str) -> int:
     try:
@@ -93,7 +201,8 @@ def deletePlaylist(session: Session, uuid: str) -> int:
         session.rollback()
         logger.error(f"Error while removing playlist : {e}")
         return 1
-    
+
+
 def addSongToPlaylist(session: Session, song_uuid: str, playlist_uuid: str, position: int | None) -> int:
     try:
         playlist = session.get(Playlist, playlist_uuid)
@@ -134,7 +243,8 @@ def addSongToPlaylist(session: Session, song_uuid: str, playlist_uuid: str, posi
         session.rollback()
         logger.error(f"Error adding song to playlist : {e}")
         return 1
-    
+
+
 def removeSongFromPlaylist(session: Session, song_uuid: str, playlist_uuid: str, position: int) -> int:
     try:
         query = select(PlaylistSongLink).where(
@@ -160,27 +270,7 @@ def removeSongFromPlaylist(session: Session, song_uuid: str, playlist_uuid: str,
         session.rollback()
         logger.error(f"Error removing song from playlist : {e}")
         return 1
-    
-def getPlaylist(session: Session, uuid: str):
-    playlist = session.get(Playlist, uuid)
-    if not playlist:
-        logger.warning(f"Tried to query non-existant playlist with UUID : {uuid}")
-        return 22
-    query = (select(PlaylistSongLink)
-                .where(PlaylistSongLink.playlist == playlist)
-                .order_by(PlaylistSongLink.track_position)
-                .options(joinedload(PlaylistSongLink.song).joinedload(Song.artist)))
-    links = session.execute(query).scalars().all()
 
-    result = {"name": playlist.name, "songs": []}
-    for link in links:
-        result["songs"].append({
-            'position': link.track_position,
-            'title': link.song.title,
-            'artist': link.song.artist.name,
-            's3_hash': link.song.id
-        })
-    return result
 
 def getSongFromPlaylistIndex(session: Session, playlist_id: str, index: int):
     playlist = session.get(Playlist, playlist_id)
@@ -205,29 +295,4 @@ def getSongFromPlaylistIndex(session: Session, playlist_id: str, index: int):
         "artist": link.song.artist.name
     }
 
-def getSongInfo(session: Session, uuid: str):
-    query = select(Song).options(joinedload(Song.artist)).where(Song.id == uuid)
-    song = session.execute(query).scalar_one_or_none()
-    if not song:
-        return 22
-    if not song.artist:
-        return 23
-    
-    return {
-        'title': song.title,
-        'artist': {'name': song.artist.name}
-    }
 
-def getSongs(session: Session):
-    query = select(Song).options(joinedload(Song.artist))
-    songs = session.execute(query).scalars().all()
-
-    result = []
-    for song in songs:
-        if not song.artist:
-            return 23
-        result.append({
-            'title': song.title,
-            'artist': {'name': song.artist.name}
-        })
-    return result

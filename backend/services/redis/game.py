@@ -3,7 +3,7 @@ import aioredis
 import time
 from sqlalchemy.orm import Session
 from models.redis import *
-from services.sql import getSongFromPlaylistIndex
+from services.sql.library import getSongFromPlaylistIndex
 
 REDIS_URL = "redis://localhost:6379"
 GAME_TTL = 3600
