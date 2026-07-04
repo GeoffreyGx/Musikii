@@ -4,6 +4,6 @@
 1 = Unhandled error
 
 2XX-2XX -> SQL Errors 
-21 = ID is not unique
+21 = UUID collision
 22 = ID not found
 221 = Foreign ID not found

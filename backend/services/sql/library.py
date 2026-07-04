@@ -1,7 +1,9 @@
 import logging
 from sqlalchemy import select, update, func
 from sqlalchemy.orm import Session, joinedload
-from models.sql import Song, Artist, Playlist, PlaylistSongLink
+from fastapi import UploadFile
+from models.sql import Resource, Song, Artist, Playlist, PlaylistSongLink
+from services.s3 import newFile
 
 logger = logging.getLogger()
 
@@ -71,6 +73,28 @@ def deleteArtist(session: Session, uuid: str) -> int:
         return 1
 
 
+# Resource-related queries
+async def newResource(session: Session, s3, uuid: str, file: UploadFile):
+    try:
+        query = select(Resource).where(Resource.id.like("%" + uuid))
+        if session.execute(query).scalar_one_or_none():
+            return 21
+
+        new_resource = Resource(id=uuid, uploaded=False)
+        session.add(new_resource)
+        session.commit()
+
+        if await newFile(s3, file, uuid) != 0:
+            return 2
+        new_resource.uploaded = True
+        session.commit()
+        return 0
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error while creating new resource : {e}")
+        return 1
+
+
 # Songs-related queries
 def getSongs(session: Session):
     query = select(Song).options(joinedload(Song.artist))
@@ -109,7 +133,7 @@ def newSong(session: Session, title: str, artist_id: str, uuid: str) -> int:
         if session.get(Song, uuid):
             return 21
         
-        new_song = Song(id=uuid, title=title, artist_id=artist_id)
+        new_song = Song(id=uuid, title=title, artist_id=artist_id, resource_id=uuid)
         session.add(new_song)
         session.commit()
         return 0
@@ -374,5 +398,3 @@ def getSongFromPlaylistIndex(session: Session, playlist_id: str, index: int):
         "title": link.song.title,
         "artist": link.song.artist.name
     }
-
-

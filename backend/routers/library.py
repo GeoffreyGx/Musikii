@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from services.sql import getDB
-from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, modifyPlaylist, getPlaylist, getSong, getSongs, getArtist, getArtists, getPlaylists, addSongToPlaylist, removeSongFromPlaylist
+from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, modifyPlaylist, getPlaylist, newFile, getSong, getSongs, getArtist, getArtists, getPlaylists, addSongToPlaylist, removeSongFromPlaylist, newResource
 from services.s3 import newFile, removeFile, getS3Client
 
 logger = logging.getLogger()
@@ -17,6 +17,7 @@ class PlaylistPatch(BaseModel):
     song_id: str | None = None
     position: int | None = None
     remove_song: bool = False
+
 
 # Artist-specific routes
 @router.get('/artists')
@@ -74,21 +75,21 @@ async def create_new_song(
     db: Session = Depends(getDB)
 ):
     file_key = "uupload-" + uuid.uuid4().hex
-    while True:
-        try:
-            await s3.get_object(Bucket='musikii-dev', Key=file_key)
-            logger.warning("New UUID already exists in S3! Trying again...")
-            file_key = uuid.uuid4().hex
-        except Exception:
-            break
-    
+    try_count = 0
+    while (res := await newResource(db, s3, file_key, file)) == 21 and try_count <= 10:
+        logger.warning("New UUID already exists in S3! Trying again...")
+        file_key = uuid.uuid4().hex
+        try_count = try_count + 1
+    if try_count >= 10:
+        raise HTTPException(500, "UUID generation failed")
+    if res == 2:
+        raise HTTPException(500, "Upload failed")
+    if res == 1:
+        raise HTTPException(500, "Error while creating resource")
+
     res = newSong(db, title, artist_id, file_key)
     if (res != 0):
         raise HTTPException(500, "Cannot register song to database. Nothing was saved!")
-    
-    res = await newFile(s3, file, file_key)
-    if (res != 0):
-        raise HTTPException(500, "Upload failed")
     
     return Response(file_key)
 
