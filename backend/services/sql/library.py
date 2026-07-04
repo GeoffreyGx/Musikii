@@ -3,7 +3,7 @@ from sqlalchemy import select, update, func
 from sqlalchemy.orm import Session, joinedload
 from fastapi import UploadFile
 from models.sql import Resource, Song, Artist, Playlist, PlaylistSongLink
-from services.s3 import newFile
+from services.s3 import newFile, removeFile
 
 logger = logging.getLogger()
 
@@ -95,6 +95,22 @@ async def newResource(session: Session, s3, uuid: str, file: UploadFile):
         return 1
 
 
+async def deleteResource(session: Session, s3, uuid: str):
+    try:
+        query = select(Resource).where(Resource.id.like("%" + uuid))
+        if not (resource := session.execute(query).scalar_one_or_none()):
+            return 21
+
+        if await removeFile(s3, resource.id) != 0:
+            return 2
+        session.delete(resource)
+        session.commit()
+        return 0
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error while deleting resource {uuid}: {e}")
+        return 1
+
 # Songs-related queries
 def getSongs(session: Session):
     query = select(Song).options(joinedload(Song.artist))
@@ -122,7 +138,8 @@ def getSong(session: Session, uuid: str):
     
     return {
         'title': song.title,
-        'artist': {'name': song.artist.name}
+        'artist': {'name': song.artist.name},
+        'file_id': song.resource.id
     }
 
 

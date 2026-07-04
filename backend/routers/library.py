@@ -5,8 +5,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from services.sql import getDB
-from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, modifyPlaylist, getPlaylist, newFile, getSong, getSongs, getArtist, getArtists, getPlaylists, addSongToPlaylist, removeSongFromPlaylist, newResource
-from services.s3 import newFile, removeFile, getS3Client
+from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, modifyPlaylist, getPlaylist, newFile, getSong, getSongs, getArtist, getArtists, getPlaylists, addSongToPlaylist, removeSongFromPlaylist, newResource, deleteResource
+from services.s3 import getS3Client
 
 logger = logging.getLogger()
 router = APIRouter()
@@ -102,7 +102,7 @@ async def delete_song(song_id: str, s3 = Depends(getS3Client), db: Session = Dep
     if res == 1:
         raise HTTPException(500, "Removal failed")
     if res == 0:
-        res = await removeFile(s3, song_id)
+        res = await deleteResource(db, s3, song_id)
         if res == 1:
             raise HTTPException(500, "Removal failed")
         return Response(song_id)
