@@ -1,8 +1,9 @@
 import logging
 import uuid
-from fastapi import APIRouter, UploadFile, Response, HTTPException, Depends
+from typing import Annotated
+from fastapi import APIRouter, UploadFile, Response, HTTPException, Depends, Path, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from services.sql import getDB
 from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, modifyPlaylist, getPlaylist, newFile, getSong, getSongs, getArtist, getArtists, getPlaylists, addSongToPlaylist, removeSongFromPlaylist, newResource, deleteResource
@@ -11,10 +12,16 @@ from services.s3 import getS3Client
 logger = logging.getLogger()
 router = APIRouter()
 
+UUID_HEX_PATTERN = r"^[0-9a-fA-F]{32}$"
+
+UUIDPath = Annotated[str, Path(pattern=UUID_HEX_PATTERN, description="32-character hex UUID")]
+UUIDQuery = Annotated[str, Query(pattern=UUID_HEX_PATTERN, description="32-character hex UUID")]
+UUIDField = Annotated[str, Field(pattern=UUID_HEX_PATTERN, description="32-character hex UUID")]
+
 
 class PlaylistPatch(BaseModel):
     name: str | None = None
-    song_id: str | None = None
+    song_id: UUIDField | None = None
     position: int | None = None
     remove_song: bool = False
 
@@ -26,7 +33,7 @@ def get_artists(db: Session = Depends(getDB)):
 
 
 @router.get('/artist/{artist_id}')
-def get_artist_info(artist_id: str, db: Session = Depends(getDB)):
+def get_artist_info(artist_id: UUIDPath, db: Session = Depends(getDB)):
     res = getArtist(db, artist_id)
     if res == 22:
         raise HTTPException(404, "Artist not found")
@@ -44,7 +51,7 @@ def create_artist(name: str, db: Session = Depends(getDB)):
 
 
 @router.delete("/artist/{artist_id}")
-def delete_artist(artist_id: str, db: Session = Depends(getDB)):
+def delete_artist(artist_id: UUIDPath, db: Session = Depends(getDB)):
     res = deleteArtist(db, artist_id)
     if res == 23:
         raise HTTPException(403, "Artist has song(s) still registered. Please remove every song associated before removing")
@@ -62,19 +69,19 @@ def get_songs(db: Session = Depends(getDB)):
 
 
 @router.get("/song/{song_id}")
-def get_song_info(song_id: str, db: Session = Depends(getDB)):
+def get_song_info(song_id: UUIDPath, db: Session = Depends(getDB)):
     return getSong(db, song_id)
 
 
 @router.post("/song")
 async def create_new_song(
-    title: str, 
-    artist_id: str, 
-    file: UploadFile, 
+    title: str,
+    artist_id: UUIDQuery,
+    file: UploadFile,
     s3 = Depends(getS3Client),
     db: Session = Depends(getDB)
 ):
-    file_key = "uupload-" + uuid.uuid4().hex
+    file_key = uuid.uuid4().hex
     try_count = 0
     while (res := await newResource(db, s3, file_key, file)) == 21 and try_count <= 10:
         logger.warning("New UUID already exists in S3! Trying again...")
@@ -95,7 +102,7 @@ async def create_new_song(
 
 
 @router.delete("/song/{song_id}")
-async def delete_song(song_id: str, s3 = Depends(getS3Client), db: Session = Depends(getDB)):
+async def delete_song(song_id: UUIDPath, s3 = Depends(getS3Client), db: Session = Depends(getDB)):
     res = deleteSong(db, song_id)
     if res == 22:
         raise HTTPException(404, "Song not found")
@@ -115,7 +122,7 @@ def get_playlists(db: Session = Depends(getDB)):
 
 
 @router.get("/playlist/{playlist_id}")
-def get_playlist_info(playlist_id: str, db: Session = Depends(getDB)):
+def get_playlist_info(playlist_id: UUIDPath, db: Session = Depends(getDB)):
     res = getPlaylist(db, playlist_id)
     if res == 22:
         raise HTTPException(404, "Artist not found")
@@ -133,7 +140,7 @@ def create_new_playlist(name: str, db: Session = Depends(getDB)):
 
 
 @router.delete("/playlist/{playlist_id}")
-def delete_playlist(playlist_id: str, db: Session = Depends(getDB)):
+def delete_playlist(playlist_id: UUIDPath, db: Session = Depends(getDB)):
     res = deletePlaylist(db, playlist_id)
     if res == 22:
         raise HTTPException(404, "Playlist not found")
@@ -143,7 +150,7 @@ def delete_playlist(playlist_id: str, db: Session = Depends(getDB)):
 
 
 @router.patch("/playlist/{playlist_id}")
-def modify_playlist(playlist_id: str, patch: PlaylistPatch, db: Session = Depends(getDB)):
+def modify_playlist(playlist_id: UUIDPath, patch: PlaylistPatch, db: Session = Depends(getDB)):
     if patch.name is None and patch.song_id is None:
         raise HTTPException(400, "No playlist changes were provided")
 
@@ -167,7 +174,7 @@ def modify_playlist(playlist_id: str, patch: PlaylistPatch, db: Session = Depend
 
 
 @router.get("/add/{playlist_id}", deprecated=True)
-def add_song_to_playlist(playlist_id: str, song_id: str, position: int | None = None, db: Session = Depends(getDB)):
+def add_song_to_playlist(playlist_id: UUIDPath, song_id: UUIDQuery, position: int | None = None, db: Session = Depends(getDB)):
     res = addSongToPlaylist(db, song_id, playlist_id, position)
     if res == 22:
         raise HTTPException(404, "Song or playlist not found")
@@ -177,7 +184,7 @@ def add_song_to_playlist(playlist_id: str, song_id: str, position: int | None = 
 
     
 @router.get("/remove/{playlist_id}", deprecated=True)
-def remove_song_from_playlist(playlist_id: str, song_id: str, position: int, db: Session = Depends(getDB)):
+def remove_song_from_playlist(playlist_id: UUIDPath, song_id: UUIDQuery, position: int, db: Session = Depends(getDB)):
     res = removeSongFromPlaylist(db, song_id, playlist_id, position)
     if res == 22:
         raise HTTPException(404, "Song or playlist not found")
@@ -188,7 +195,7 @@ def remove_song_from_playlist(playlist_id: str, song_id: str, position: int, db:
 
 # Stream-specific routes
 @router.get("/stream/{file_key}")
-async def stream_audio(file_key: str, s3 = Depends(getS3Client)):
+async def stream_audio(file_key: UUIDPath, s3 = Depends(getS3Client)):
     try:
         obj = await s3.get_object(Bucket='musikii-dev', Key=file_key)
         async def loop():
