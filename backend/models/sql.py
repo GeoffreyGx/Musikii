@@ -1,18 +1,12 @@
 from __future__ import annotations
 
 from typing import List
-from sqlalchemy import Table, Column, String, Integer, Boolean, ForeignKey
+from sqlalchemy import String, Integer, Boolean, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.engine import Engine
 
 class Base(DeclarativeBase):
     pass
-
-song_links = Table('song_links', Base.metadata,
-                    Column('id', Integer, primary_key=True, autoincrement=True),
-                    Column("playlistId", ForeignKey("playlist.id", ondelete="CASCADE")),
-                    Column("songId", ForeignKey("song.id", ondelete="CASCADE"))
-                    )
 
 class PlaylistSongLink(Base):
     __tablename__ = 'playlist_song_link'
