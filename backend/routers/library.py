@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from services.sql import getDB
-from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, modifyPlaylist, getPlaylist, newFile, getSong, getSongs, getArtist, getArtists, getPlaylists, addSongToPlaylist, removeSongFromPlaylist, newResource, deleteResource
+from services.sql.library import newSong, newArtist, newPlaylist, deleteSong, deleteArtist, deletePlaylist, modifySong, modifyPlaylist, modifyArtist, getPlaylist, getSong, getSongs, getArtist, getArtists, getPlaylists, addSongToPlaylist, removeSongFromPlaylist, newResource, deleteResource
 from services.s3 import getS3Client
 
 logger = logging.getLogger()
@@ -17,6 +17,15 @@ UUID_HEX_PATTERN = r"^[0-9a-fA-F]{32}$"
 UUIDPath = Annotated[str, Path(pattern=UUID_HEX_PATTERN, description="32-character hex UUID")]
 UUIDQuery = Annotated[str, Query(pattern=UUID_HEX_PATTERN, description="32-character hex UUID")]
 UUIDField = Annotated[str, Field(pattern=UUID_HEX_PATTERN, description="32-character hex UUID")]
+
+
+class ArtistPatch(BaseModel):
+    name: str | None = None
+
+
+class SongPatch(BaseModel):
+    title: str | None = None
+    artist_id: str | None = None
 
 
 class PlaylistPatch(BaseModel):
@@ -59,6 +68,24 @@ def delete_artist(artist_id: UUIDPath, db: Session = Depends(getDB)):
         raise HTTPException(404, "Artist not found")
     if res == 1:
         raise HTTPException(500, "Removal failed")
+    return Response(artist_id)
+
+
+@router.patch("/artist/{artist_id}")
+def modify_artist(artist_id: UUIDPath, patch: ArtistPatch, db: Session = Depends(getDB)):
+    if patch.name is None:
+        raise HTTPException(400, "No changes were provided")
+
+    res = modifyArtist(
+        db,
+        artist_id,
+        name=patch.name
+    )
+    if res == 22:
+        raise HTTPException(404, "Artist not found")
+    if res == 1:
+        raise HTTPException(500, "Modification failed")
+
     return Response(artist_id)
 
 
@@ -115,6 +142,27 @@ async def delete_song(song_id: UUIDPath, s3 = Depends(getS3Client), db: Session 
         return Response(song_id)
 
 
+@router.patch("/song/{song_id}")
+def modify_song(song_id: UUIDPath, patch: SongPatch, db: Session = Depends(getDB)):
+    if patch.title is None and patch.artist_id is None:
+        raise HTTPException(400, "No changes were provided")
+
+    res = modifySong(
+        db,
+        song_id,
+        title=patch.title,
+        artist_id=patch.artist_id
+    )
+    if res == 22:
+        raise HTTPException(404, "Song not found")
+    if res == 221:
+        raise HTTPException(404, "Artist not found")
+    if res == 1:
+        raise HTTPException(500, "Modification failed")
+
+    return Response(song_id)
+
+
 # Playlist-specific routes
 @router.get("/playlists")
 def get_playlists(db: Session = Depends(getDB)):
@@ -169,7 +217,7 @@ def modify_playlist(playlist_id: UUIDPath, patch: PlaylistPatch, db: Session = D
     if res == 1:
         raise HTTPException(500, "Modification failed")
 
-    return getPlaylist(db, playlist_id)
+    return Response(playlist_id)
 
 
 

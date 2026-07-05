@@ -73,6 +73,24 @@ def deleteArtist(session: Session, uuid: str) -> int:
         return 1
 
 
+def modifyArtist(session: Session, uuid: str, name: str | None) -> int:
+    try:
+        artist = session.get(Artist, uuid)
+        if not artist:
+            logger.warning(f"Tried to modify non-existant artist with UUID: {uuid}")
+            return 22
+
+        if name is not None:
+            artist.name = name
+            
+        session.commit()
+        return 0
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error while modifying artist : {e}")
+        return 1
+
+
 # Resource-related queries
 async def newResource(session: Session, s3, uuid: str, file: UploadFile):
     try:
@@ -110,6 +128,7 @@ async def deleteResource(session: Session, s3, uuid: str):
         session.rollback()
         logger.error(f"Error while deleting resource {uuid}: {e}")
         return 1
+
 
 # Songs-related queries
 def getSongs(session: Session):
@@ -173,7 +192,32 @@ def deleteSong(session: Session, uuid: str) -> int:
     except Exception as e:
         session.rollback()
         logger.error(f"Error while removing song : {e}")
-        return 1    
+        return 1
+
+
+def modifySong(session: Session, uuid: str, title: str | None, artist_id: str | None) -> int:
+    try:
+        song = session.get(Song, uuid)
+        if not song:
+            logger.warning(f"Tried to modify non-existant song with UUID: {uuid}")
+            return 22
+
+        if title is not None:
+            song.title = title
+
+        if artist_id is not None:
+            artist = session.get(Artist, artist_id)
+            if not artist:
+                logger.warning(f"Tried to modify song with non-existant artist UUID: {uuid}")
+                return 221
+            song.artist = artist
+            
+        session.commit()
+        return 0
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error while modifying song : {e}")
+        return 1
 
 
 # Playlist-related queries

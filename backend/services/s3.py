@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import UploadFile, Depends
+from fastapi import UploadFile
 import aioboto3
 
 logger = logging.getLogger()
