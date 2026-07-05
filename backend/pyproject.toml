@@ -9,3 +9,8 @@ dependencies = [
     "fastapi[standard-no-fastapi-cloud-cli]>=0.139.0",
     "sqlalchemy>=2.0.51",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

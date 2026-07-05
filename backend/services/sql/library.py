@@ -63,7 +63,11 @@ def deleteArtist(session: Session, uuid: str) -> int:
         if not artist:
             logger.warning(f"Tried to remove non-existant artist with UUID : {uuid}")
             return 22
-        
+
+        if artist.songs:
+            logger.warning(f"Tried to remove artist with song(s) still registered : {uuid}")
+            return 23
+
         session.delete(artist)
         session.commit()
         return 0
