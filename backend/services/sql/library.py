@@ -1,16 +1,27 @@
 import logging
 from sqlalchemy import select, update, func
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.sql.functions import ReturnTypeFromArgs
 from fastapi import UploadFile
 from models.sql import Resource, Song, Artist, Playlist, PlaylistSongLink
 from services.s3 import newFile, removeFile
 
 logger = logging.getLogger()
-
+class unaccent(ReturnTypeFromArgs):
+    pass
 
 # Artists-related queries
-def getArtists(session: Session):
-    query = select(Artist)
+def getArtists(q: str, session: Session):
+    if q != "":
+        if session.connection().engine.dialect.name == "postgresql":
+            query = select(Artist).where(
+                func.unaccent(Artist.name).icontains(q)
+            )
+        else:
+            query = select(Artist).where(Artist.name.icontains(q))
+
+    else:
+        query = select(Artist)
     artists = session.execute(query).scalars().all()
 
     result = []

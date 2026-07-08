@@ -37,8 +37,8 @@ class PlaylistPatch(BaseModel):
 
 # Artist-specific routes
 @router.get('/artists')
-def get_artists(db: Session = Depends(getDB)):
-    return getArtists(db)
+def get_artists(q: str = "", db: Session = Depends(getDB)):
+    return getArtists(q, db)
 
 
 @router.get('/artist/{artist_id}')
