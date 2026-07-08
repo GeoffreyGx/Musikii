@@ -1,15 +1,15 @@
 import logging
 from dotenv import load_dotenv
-load_dotenv()
 import uvicorn
 from fastapi import FastAPI
-from routers import library
 
 # APP SETUP
+load_dotenv()
 logger = logging.getLogger()
 app = FastAPI()
 
 # ENDPOINTS
+from routers import library
 app.include_router(
     library.router,
     prefix="/library",
