@@ -5,6 +5,11 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 from models.sql import initializeDB
 
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
+
 logger = logging.getLogger()
 
 DB_DIALECT = os.getenv("DB_DIALECT")
@@ -31,7 +36,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
-    if type(dbapi_connection) is __import__("psycopg2").extensions.connection:
+    if psycopg2 is not None and type(dbapi_connection) is psycopg2.extensions.connection:
         cursor = dbapi_connection.cursor()
         cursor.execute("CREATE EXTENSION IF NOT EXISTS unaccent;")
         cursor.close()
