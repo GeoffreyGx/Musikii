@@ -36,3 +36,5 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+        env:
+          DB_DIALECT: sqlite
