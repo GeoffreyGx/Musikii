@@ -38,3 +38,4 @@ jobs:
         run: uv run pytest
         env:
           DB_DIALECT: sqlite
+          API_KEY: abcdef123
