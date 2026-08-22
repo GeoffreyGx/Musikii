@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
-from app import app
+from app import app, get_api_key
 from models.sql import Base
 from services.sql import getDB
 from services.s3 import getS3Client
@@ -63,8 +63,12 @@ def client(fake_s3):
     async def override_get_s3():
         yield fake_s3
 
+    def override_get_api_key():
+        return ''
+
     app.dependency_overrides[getDB] = override_get_db
     app.dependency_overrides[getS3Client] = override_get_s3
+    app.dependency_overrides[get_api_key] = override_get_api_key
 
     with TestClient(app) as test_client:
         yield test_client
