@@ -23,7 +23,7 @@ def test_create_song_with_unknown_artist_fails(client):
         files={"file": ("song.mp3", b"audio-bytes", "audio/mpeg")},
     )
 
-    assert response.status_code == 500
+    assert response.status_code == 404
 
 
 def test_get_songs_lists_created_songs(client, make_artist, make_song):
@@ -144,3 +144,32 @@ def test_get_song_info_invalid_uuid_is_rejected(client):
     response = client.get(f"/library/song/{INVALID_UUID}")
 
     assert response.status_code == 422
+
+
+def test_create_song_with_invalid_content_type_is_rejected(client, make_artist):
+    artist_id = make_artist()
+
+    response = client.post(
+        "/library/song",
+        params={"title": "Test Song", "artist_id": artist_id},
+        files={"file": ("malicious.exe", b"not-audio", "application/x-executable")},
+    )
+
+    assert response.status_code == 400
+    assert "Invalid file type" in response.json()["detail"]
+
+
+def test_create_song_with_file_too_large_is_rejected(client, make_artist):
+    artist_id = make_artist()
+    # Create a file larger than 100 MB
+    large_file = b"x" * (101 * 1024 * 1024)
+
+    response = client.post(
+        "/library/song",
+        params={"title": "Test Song", "artist_id": artist_id},
+        files={"file": ("large.mp3", large_file, "audio/mpeg")},
+    )
+
+    assert response.status_code == 413
+    assert "File too large" in response.json()["detail"]
+
