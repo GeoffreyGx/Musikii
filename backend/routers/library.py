@@ -108,6 +108,11 @@ async def create_new_song(
     s3 = Depends(getS3Client),
     db: Session = Depends(getDB)
 ):
+    # Validate artist exists before uploading to prevent orphaned S3 objects
+    artist = getArtist(db, artist_id)
+    if artist == 22:
+        raise HTTPException(404, "Artist not found")
+    
     file_key = uuid.uuid4().hex
     try_count = 0
     while (res := await newResource(db, s3, file_key, file)) == 21 and try_count <= 10:
@@ -118,6 +123,10 @@ async def create_new_song(
         raise HTTPException(500, "UUID generation failed")
     if res == 2:
         raise HTTPException(500, "Upload failed")
+    if res == 3:
+        raise HTTPException(400, "Invalid file type. Only audio files are allowed")
+    if res == 4:
+        raise HTTPException(413, "File too large. Maximum size is 100 MB")
     if res == 1:
         raise HTTPException(500, "Error while creating resource")
 

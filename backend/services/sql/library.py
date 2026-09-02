@@ -117,8 +117,13 @@ async def newResource(session: Session, s3, uuid: str, file: UploadFile):
         session.add(new_resource)
         session.commit()
 
-        if await newFile(s3, file, uuid) != 0:
-            return 2
+        upload_result = await newFile(s3, file, uuid)
+        if upload_result != 0:
+            # Rollback the resource record if upload fails
+            session.delete(new_resource)
+            session.commit()
+            return upload_result  # Propagate error code (1, 3, or 4)
+        
         new_resource.uploaded = True
         session.commit()
         return 0
