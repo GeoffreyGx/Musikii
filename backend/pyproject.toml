@@ -13,7 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 postgresql = [
-    "psycopg2>=2.9.12",
+    "psycopg2>=2.9.13",
 ]
 
 [dependency-groups]
